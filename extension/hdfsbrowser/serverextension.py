@@ -21,38 +21,41 @@ proxy_root = "/hdfsbrowser"
 class HdfsBrowserHandler(IPythonHandler):
     """A custom tornado request handler to proxy HDFS Browser requests."""
 
+    http = httpclient.AsyncHTTPClient()
+
     @tornado.web.asynchronous
     def get(self):
         """Handles get requests to the HDFS Browser
         Fetches the webHDFS from the configured ports
         """
-        # print("HDFSBROWSER_SERVER: Handler GET")
-        http = httpclient.AsyncHTTPClient()
         # Without protocol and trailing slash
         baseurl = os.environ.get("HDFS_NAMENODE_HOST", "p01001532067275.cern.ch")
         port = os.environ.get("HDFS_NAMENODE_PORT", "50070")
-        url = "http://" + baseurl + ":" + port
-        # print("HDFS_SERVER: Request URI" + self.request.uri)
-        # print("HDFS_SERVER: Getting from " + url)
-        request_path = self.request.uri[(
+        url = "http://" + baseurl + ":" + port + "/explorer.html"
+        
+	self.request_path = self.request.uri[(
             self.request.uri.index(proxy_root) + len(proxy_root) + 1):]
+
         self.replace_path = self.request.uri[:self.request.uri.index(
             proxy_root) + len(proxy_root)]
-        print("HDFS_SERVER: Request_path " +
-              request_path + " \n Replace_path:" + self.replace_path)
-        backendurl = url_path_join(url, request_path)
-        self.debug_url = url
-        self.backendurl = backendurl
-        logger.info("GET: \n Request uri:%s \n Port: %s \n Host: %s \n request_path: %s ", self.request.uri, os.environ.get(
-            "HDFS_NAMENODE_PORT", "4040"), os.environ.get("HDFS_NAMENODE_HOST", "127.0.0.1"), request_path)
-        http.fetch(backendurl, self.handle_response)
+
+	log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
+  
+        self.fetch_content(url)
+
+
+    def fetch_content(self, url):
+        """Fetches the requested content"""
+        log.debug("Fetching content from: %s", url)
+        self.http.fetch(url, self.handle_response)
+
 
     def handle_response(self, response):
         """Sends the fetched page as response to the GET request"""
         if response.error:
             content_type = "application/json"
             content = json.dumps({"error": "HDFS Browser not reachable",
-                                  "url": self.debug_url, "backendurl": self.backendurl, "replace_path": self.replace_path})
+                                  "backendurl": response.effective_url, "replace_path": self.replace_path})
             print("HDFS_BROWSER: HDFS Browser not reachable")
         else:
             content_type = response.headers["Content-Type"]
@@ -75,22 +78,16 @@ def load_jupyter_server_extension(nb_server_app):
     Args:
         nb_server_app (NotebookWebApplication): handle to the Notebook webserver instance.
     """
-    print("HDFSBROWSER_SERVER: Loading Server Extension")
     # Configuring logging for the extension
     # This is necessary because in some versions of jupyter, print statements are not output to console.
 
-    global logger
-    logger = logging.getLogger("hdfsbrowserserver")
-    logger.setLevel(logging.DEBUG)
-    logger.propagate = False
-    # For debugging this module - Writes logs to a file
-    fh = logging.FileHandler("hdfsbrowser_serverextension.log", mode="w")
-    fh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        "%(levelname)s:  %(asctime)s - %(name)s - %(process)d - %(processName)s - \
-        %(thread)d - %(threadName)s\n %(message)s \n")
-    fh.setFormatter(formatter)
-    logger.addHandler(fh) ## Comment this line to disable logging to a file.
+    global log
+    log = logging.getLogger('tornado.hdfsbrowser.server')
+    log.name = "SparkMonitorServer"
+    log.setLevel(logging.INFO)
+    log.propagate = True
+
+    log.info("Loading Server Extension")
 
     web_app = nb_server_app.web_app
     host_pattern = ".*$"
