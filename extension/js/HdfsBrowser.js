@@ -11,16 +11,18 @@ define([
              // alert('this is an alert from my_extension!');
                 console.log("hdfsbrowser: ", Jupyter.notebook.base_url)
     		var iframe = $('\
-                    <div style="overflow:hidden">\
-                    <iframe src="'+ Jupyter.notebook.base_url + 'hdfsbrowser/explorer.html' + '" frameborder="0" scrolling="yes">\
+                    <div style="overflow:scroll">\
+                    <iframe src="'+ Jupyter.notebook.base_url + 'hdfsbrowser/explorer.html' + '" frameborder="0" scrolling="yes" class=hdfsbrowserframe>\
                     </iframe>\
                     </div>\
                     ');
+                iframe.find('.hdfsbrowserframe').width('100%');
+	        iframe.find('.hdfsbrowserframe').height('100%');
     		iframe.dialog({
         		title: "HDFS Browser",
         		width: 1000,
         		height: 500,
-        		autoResize: false,
+        		autoResize: true,
         		dialogClass: "hdfs-browser-dialog"
     			});
 

@@ -45,14 +45,14 @@ class HdfsBrowserHandler(IPythonHandler):
         self.replace_path = self.request.uri[:self.request.uri.index(
             proxy_root) + len(proxy_root)]
 
-	log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
+	#log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
   
         self.fetch_content(url_path_join(url, self.request_path))
 
 
     def fetch_content(self, url):
         """Fetches the requested content"""
-        log.debug("Fetching content from: %s", url)
+        #log.debug("Fetching content from: %s", url)
         self.http.fetch(url, self.handle_response)
 
 
@@ -67,9 +67,14 @@ class HdfsBrowserHandler(IPythonHandler):
             content_type = response.headers["Content-Type"]
             if "text/html" in content_type:
                 content = replace(response.body, self.replace_path)
+                log.debug("HTML URL IS " + response.effective_url)
             elif "javascript" in content_type:
                 content = response.body.decode().replace(
-                    "location.origin", "location.origin +'" + self.replace_path + "' ")
+                    "/webhdfs/v1", self.replace_path + "/webhdfs/v1")
+                if "explorer.js" in response.effective_url:
+                	log.debug("JS URL IS " + response.effective_url)
+			log.debug("LOCATION " + self.replace_path)
+                	log.debug("JS BODY " + response.body.decode().replace("/webhdfs/v1", self.replace_path + "/webhdfs/v1"))
             else:
                 # Probably binary response, send it directly.
                 content = response.body
