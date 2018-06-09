@@ -23,15 +23,21 @@ class HdfsBrowserHandler(IPythonHandler):
 
     http = httpclient.AsyncHTTPClient()
 
+    def set_default_headers(self):
+        print "setting headers!!!"
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Headers", "*")
+        self.set_header('Access-Control-Allow-Methods', "*")
+
     @tornado.web.asynchronous
     def get(self):
         """Handles get requests to the HDFS Browser
         Fetches the webHDFS from the configured ports
         """
         # Without protocol and trailing slash
-        baseurl = os.environ.get("HDFS_NAMENODE_HOST", "p01001532067275.cern.ch")
+        baseurl = os.environ.get("HDFS_NAMENODE_HOST", "80.158.23.74")
         port = os.environ.get("HDFS_NAMENODE_PORT", "50070")
-        url = "http://" + baseurl + ":" + port + "/explorer.html"
+        url = "http://" + baseurl + ":" + port
         
 	self.request_path = self.request.uri[(
             self.request.uri.index(proxy_root) + len(proxy_root) + 1):]
@@ -41,7 +47,7 @@ class HdfsBrowserHandler(IPythonHandler):
 
 	log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
   
-        self.fetch_content(url)
+        self.fetch_content(url_path_join(url, self.request_path))
 
 
     def fetch_content(self, url):
@@ -62,7 +68,7 @@ class HdfsBrowserHandler(IPythonHandler):
             if "text/html" in content_type:
                 content = replace(response.body, self.replace_path)
             elif "javascript" in content_type:
-                content = response.body.replace(
+                content = response.body.decode().replace(
                     "location.origin", "location.origin +'" + self.replace_path + "' ")
             else:
                 # Probably binary response, send it directly.
@@ -83,8 +89,8 @@ def load_jupyter_server_extension(nb_server_app):
 
     global log
     log = logging.getLogger('tornado.hdfsbrowser.server')
-    log.name = "SparkMonitorServer"
-    log.setLevel(logging.INFO)
+    log.name = "hdfsBrowser"
+    log.setLevel(logging.DEBUG)
     log.propagate = True
 
     log.info("Loading Server Extension")
@@ -103,7 +109,7 @@ except ImportError:
 else:
     BEAUTIFULSOUP_BUILDER = "lxml"
 # a regular expression to match paths against the Spark on EMR proxy paths
-PROXY_PATH_RE = re.compile(r"\/proxy\/application_\d+_\d+\/(.*)")
+PROXY_PATH_RE = re.compile(r"(.*)")
 # a tuple of tuples with tag names and their attribute to automatically fix
 PROXY_ATTRIBUTES = (
     (("a", "link"), "href"),
@@ -122,11 +128,13 @@ def replace(content, root_url):
     soup = BeautifulSoup(content, BEAUTIFULSOUP_BUILDER)
     for tags, attribute in PROXY_ATTRIBUTES:
         for tag in soup.find_all(tags, **{attribute: True}):
+            tag_old = tag
             value = tag[attribute]
             match = PROXY_PATH_RE.match(value)
             if match is not None:
                 value = match.groups()[0]
             tag[attribute] = url_path_join(root_url, value)
+            log.debug("REPLACE: tag_attribute_old: %s tag_attribute_new: %s", value, tag[attribute])
     return str(soup)
 
 
