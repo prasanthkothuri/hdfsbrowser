@@ -8,6 +8,7 @@ from notebook.base.handlers import IPythonHandler
 import tornado.web
 from tornado import httpclient
 import json
+import pycurl
 import re
 import os
 import logging
@@ -20,14 +21,15 @@ proxy_root = "/hdfsbrowser"
 
 class HdfsBrowserHandler(IPythonHandler):
     """A custom tornado request handler to proxy HDFS Browser requests."""
-
+    
+    httpclient.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
     http = httpclient.AsyncHTTPClient()
-
+    
     def set_default_headers(self):
-        print "setting headers!!!"
         self.set_header("Access-Control-Allow-Origin", "*")
         self.set_header("Access-Control-Allow-Headers", "*")
         self.set_header('Access-Control-Allow-Methods', "*")
+        self.set_header('Access-Control-Allow-Credentials', "true")
 
     @tornado.web.asynchronous
     def get(self):
@@ -35,7 +37,8 @@ class HdfsBrowserHandler(IPythonHandler):
         Fetches the webHDFS from the configured ports
         """
         # Without protocol and trailing slash
-        baseurl = os.environ.get("HDFS_NAMENODE_HOST", "80.158.23.74")
+        # baseurl = os.environ.get("HDFS_NAMENODE_HOST", "80.158.23.74")
+        baseurl = os.environ.get("HDFS_NAMENODE_HOST", "p01001532067275.cern.ch")
         port = os.environ.get("HDFS_NAMENODE_PORT", "50070")
         url = "http://" + baseurl + ":" + port
         
@@ -45,16 +48,15 @@ class HdfsBrowserHandler(IPythonHandler):
         self.replace_path = self.request.uri[:self.request.uri.index(
             proxy_root) + len(proxy_root)]
 
-	#log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
+	# log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
   
         self.fetch_content(url_path_join(url, self.request_path))
-
 
     def fetch_content(self, url):
         """Fetches the requested content"""
         #log.debug("Fetching content from: %s", url)
-        self.http.fetch(url, self.handle_response)
-
+        prepare_curl_callback = lambda x: x.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_GSSNEGOTIATE)
+        self.http.fetch(url, self.handle_response, prepare_curl_callback=prepare_curl_callback, auth_username=':')
 
     def handle_response(self, response):
         """Sends the fetched page as response to the GET request"""
@@ -63,18 +65,25 @@ class HdfsBrowserHandler(IPythonHandler):
             content = json.dumps({"error": "HDFS Browser not reachable",
                                   "backendurl": response.effective_url, "replace_path": self.replace_path})
             print("HDFS_BROWSER: HDFS Browser not reachable")
+            print response.headers
         else:
             content_type = response.headers["Content-Type"]
             if "text/html" in content_type:
                 content = replace(response.body, self.replace_path)
-                log.debug("HTML URL IS " + response.effective_url)
+                # log.debug("HTML URL IS " + response.effective_url)
+                """
+		if "explorer.html" in response.effective_url:
+			log.debug("BODY " + response.body)
+                """
             elif "javascript" in content_type:
                 content = response.body.decode().replace(
                     "/webhdfs/v1", self.replace_path + "/webhdfs/v1")
+                """
                 if "explorer.js" in response.effective_url:
                 	log.debug("JS URL IS " + response.effective_url)
 			log.debug("LOCATION " + self.replace_path)
                 	log.debug("JS BODY " + response.body.decode().replace("/webhdfs/v1", self.replace_path + "/webhdfs/v1"))
+                """
             else:
                 # Probably binary response, send it directly.
                 content = response.body
@@ -125,12 +134,13 @@ PROXY_ATTRIBUTES = (
 def replace(content, root_url):
     """Replace all the links with our prefixed handler links,
      e.g.:
-    /proxy/application_1467283586194_0015/static/styles.css" or
-    /static/styles.css
+    /explorer.html or
+    /static/hadoop.css
     with
-    /spark/static/styles.css
+    /hdfsbrowser/explorer.html
     """
     soup = BeautifulSoup(content, BEAUTIFULSOUP_BUILDER)
+    soup.header.decompose()
     for tags, attribute in PROXY_ATTRIBUTES:
         for tag in soup.find_all(tags, **{attribute: True}):
             tag_old = tag
@@ -139,7 +149,7 @@ def replace(content, root_url):
             if match is not None:
                 value = match.groups()[0]
             tag[attribute] = url_path_join(root_url, value)
-            log.debug("REPLACE: tag_attribute_old: %s tag_attribute_new: %s", value, tag[attribute])
+            # log.debug("REPLACE: tag_attribute_old: %s tag_attribute_new: %s", value, tag[attribute])
     return str(soup)
 
 
