@@ -1,3 +1,5 @@
+Jupyter notebook extension to browse HDFS filesystem, works with kerberos and basic authentication
+
 #### Install client extension
 
 sudo jupyter nbextension install hdfsbrowser/extension/js/
