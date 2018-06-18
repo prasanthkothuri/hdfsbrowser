@@ -13,5 +13,5 @@ sudo jupyter nbextension enable js/HdfsBrowser
 sudo pip install hdfsbrowser/extension/
 
 #### To load (use) server extension
-
+export HDFS_NAMENODE_HOST=_namenode_
 jupyter notebook --NotebookApp.nbserver_extensions="{'hdfsbrowser.serverextension':True}" --allow-root --ip=xx.xx.xx.xx
