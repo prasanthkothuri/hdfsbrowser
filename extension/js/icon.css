@@ -1,0 +1,8 @@
+.hadoop-icon,
+.hadoop-icon:active {
+    background-image: url(./hadoop.svg);
+    background-size: 90%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+}

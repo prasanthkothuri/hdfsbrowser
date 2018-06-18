@@ -1,11 +1,18 @@
 // file js/HdfsBrowser.js
 
 define([
-    'base/js/namespace'
+    'base/js/namespace',
+    'base/js/events',
+    'require'
 ], function(
-    Jupyter
+    Jupyter, events, requirejs
 ) {
     function load_ipython_extension() {
+
+        // add css
+        $('<link rel="stylesheet" type="text/css">')
+           .attr('href', requirejs.toUrl('./icon.css'))
+           .appendTo('head');
 
         var handler = function () {
                 // console.log("hdfsbrowser: ", Jupyter.notebook.base_url)
@@ -28,7 +35,8 @@ define([
         };
 
         var action = {
-            icon: 'fa-folder-open', // a font-awesome class used on buttons, etc
+            // icon: 'fa-folder-open', // a font-awesome class used on buttons, etc
+            icon: 'fa-fw', // a font-awesome class used on buttons, etc
             help    : 'hdfs browser',
             help_index : 'zz',
             handler : handler
@@ -38,10 +46,13 @@ define([
         var action_name = 'open-iframe';
 
         var full_action_name = Jupyter.actions.register(action, action_name, prefix); // returns 'hdfs_browser:open-iframe'
-        Jupyter.toolbar.add_buttons_group([full_action_name]);
-        // this.toolbar_button = Jupyter.toolbar.add_buttons_group([full_action_name]).find('.btn');
-        // this.toolbar_button.addClass('disabled hadoop-icon');
-        // this.enabled = false;
+        // Jupyter.toolbar.add_buttons_group([full_action_name]);
+        this.toolbar_button = Jupyter.toolbar.add_buttons_group([full_action_name]).find('.btn');
+        this.toolbar_button.addClass('hadoop-icon');
+
+        // Jupyter.notebook.events.on('kernel_ready.Kernel', function() {
+        // this.toolbar_button.addClass('active');
+        //  });
 
     }
 
