@@ -8,10 +8,9 @@ define([
     function load_ipython_extension() {
 
         var handler = function () {
-             // alert('this is an alert from my_extension!');
-                console.log("hdfsbrowser: ", Jupyter.notebook.base_url)
+                // console.log("hdfsbrowser: ", Jupyter.notebook.base_url)
     		var iframe = $('\
-                    <div style="overflow:scroll">\
+                    <div style="overflow:hidden">\
                     <iframe src="'+ Jupyter.notebook.base_url + 'hdfsbrowser/explorer.html' + '" frameborder="0" scrolling="yes" class=hdfsbrowserframe>\
                     </iframe>\
                     </div>\
@@ -40,6 +39,10 @@ define([
 
         var full_action_name = Jupyter.actions.register(action, action_name, prefix); // returns 'hdfs_browser:open-iframe'
         Jupyter.toolbar.add_buttons_group([full_action_name]);
+        // this.toolbar_button = Jupyter.toolbar.add_buttons_group([full_action_name]).find('.btn');
+        // this.toolbar_button.addClass('disabled hadoop-icon');
+        // this.enabled = false;
+
     }
 
     return {

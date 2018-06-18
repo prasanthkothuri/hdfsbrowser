@@ -7,11 +7,11 @@ to the endpoint notebook_base_url/hdfsbrowser
 from notebook.base.handlers import IPythonHandler
 import tornado.web
 from tornado import httpclient
-import json
+import os, json, urllib2
 import pycurl
 import re
-import os
 import logging
+from io import StringIO
 from traitlets.config import LoggingConfigurable
 from traitlets.traitlets import Unicode
 from bs4 import BeautifulSoup
@@ -24,12 +24,15 @@ class HdfsBrowserHandler(IPythonHandler):
     
     httpclient.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
     http = httpclient.AsyncHTTPClient()
-    
+
     def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "*")
-        self.set_header('Access-Control-Allow-Methods', "*")
         self.set_header('Access-Control-Allow-Credentials', "true")
+
+    def get_active_namenode():
+	namenodes = os.popen("hdfs getconf -namenodes").read()
+	for namenode in namenodes.split():
+	 if json.loads(urllib2.urlopen("http://"+namenode+":50070/jmx?get=Hadoop:service=NameNode,name=NameNodeStatus::State").read())['beans'][0]['State'] == 'active':
+	  return namenode
 
     @tornado.web.asynchronous
     def get(self):
@@ -37,8 +40,8 @@ class HdfsBrowserHandler(IPythonHandler):
         Fetches the webHDFS from the configured ports
         """
         # Without protocol and trailing slash
-        # baseurl = os.environ.get("HDFS_NAMENODE_HOST", "80.158.23.74")
-        baseurl = os.environ.get("HDFS_NAMENODE_HOST", "p01001532067275.cern.ch")
+        # baseurl = os.environ.get("HDFS_NAMENODE_HOST", "p01001532067275.cern.ch")
+        baseurl = os.environ.get("HDFS_NAMENODE_HOST", self.get_active_namenode)
         port = os.environ.get("HDFS_NAMENODE_PORT", "50070")
         url = "http://" + baseurl + ":" + port
         
@@ -49,12 +52,11 @@ class HdfsBrowserHandler(IPythonHandler):
             proxy_root) + len(proxy_root)]
 
 	# log.debug("GET: Request uri:%s Port: %s request_path: %s replace_path: %s", self.request.uri, port, self.request_path, self.replace_path)
-  
         self.fetch_content(url_path_join(url, self.request_path))
 
     def fetch_content(self, url):
         """Fetches the requested content"""
-        #log.debug("Fetching content from: %s", url)
+        # log.debug("Fetching content from: %s", url)
         prepare_curl_callback = lambda x: x.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_GSSNEGOTIATE)
         self.http.fetch(url, self.handle_response, prepare_curl_callback=prepare_curl_callback, auth_username=':')
 
@@ -70,22 +72,10 @@ class HdfsBrowserHandler(IPythonHandler):
             content_type = response.headers["Content-Type"]
             if "text/html" in content_type:
                 content = replace(response.body, self.replace_path)
-                # log.debug("HTML URL IS " + response.effective_url)
-                """
-		if "explorer.html" in response.effective_url:
-			log.debug("BODY " + response.body)
-                """
             elif "javascript" in content_type:
                 content = response.body.decode().replace(
                     "/webhdfs/v1", self.replace_path + "/webhdfs/v1")
-                """
-                if "explorer.js" in response.effective_url:
-                	log.debug("JS URL IS " + response.effective_url)
-			log.debug("LOCATION " + self.replace_path)
-                	log.debug("JS BODY " + response.body.decode().replace("/webhdfs/v1", self.replace_path + "/webhdfs/v1"))
-                """
             else:
-                # Probably binary response, send it directly.
                 content = response.body
         self.set_header("Content-Type", content_type)
         self.write(content)
